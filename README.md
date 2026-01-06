@@ -1,24 +1,38 @@
-# Information-Retrieval-Final-Project-2025-2026
-High-performance search engine designed to index and search the entire English Wikipedia corpus. It utilizes core Information Retrieval concepts to provide relevant results quickly.
+Wikipedia Search Engine (Information Retrieval Project)
 
-Features
+This repository contains the implementation of a scalable search engine capable of retrieving and ranking documents from the entire English Wikipedia corpus (over 6 million articles). The system is built using Python, Flask, and Google Cloud Platform (GCP), utilizing PySpark for indexing and efficient inverted index structures for retrieval.
+🚀 Features
 
-    Full-Text Search: Efficient querying across the entire English Wikipedia dataset.
+    Sub-second Query Latency: Optimized for fast retrieval using inverted indices and memory mapping.
 
-    Tokenization & Preprocessing: Includes stemming, stop-word removal, and case folding.
+    Multi-Signal Ranking: Uses an ensemble of ranking methods including:
 
-    Inverted Index: A custom-built inverted index for fast document retrieval.
+        BM25 (Body, Title, and Anchor text).
 
-    Ranking: Uses the TF-IDF (Term Frequency-Inverse Document Frequency) scoring model or BM25 to rank results by relevance.
+        PageRank (Link analysis for authority).
 
-    Scalability: Designed to handle large-scale XML/JSON dumps from Wikipedia.
+        PageViews (Traffic analysis for popularity).
 
-    Architecture
+    Ranking Refinement: Implements a linear combination of scores with log-normalization for PageRank.
 
-The system is divided into three main phases:
+    Specialized Search Routes: Dedicated API endpoints for title search, anchor text search, and body search.
 
-    Parsing: Extracting clean text from the Wikipedia XML/JSON dump.
+    Cloud Ready: Designed to run on GCP Compute Engine instances.
 
-    Indexing: Building a compressed inverted index stored on disk.
+🛠 Architecture
 
-    Querying: A search interface that processes user input and returns the top k ranked documents.
+The project consists of two main phases:
+
+    Index Construction (Offline): Large-scale processing of the Wikipedia dump using Apache Spark (Dataproc). This phase produces inverted indices (posting lists), TF-IDF statistics, and document metadata.
+
+    Retrieval Engine (Online): A Flask web server that loads the compressed indices and serves search queries via a RESTful API.
+
+Search Logic (The "Ensemble")
+
+The main search algorithm (/search) calculates a composite score S(q,d) for a query q and document d:
+
+$$ S(q, d) = w_{body} \cdot BM25_{body} + w_{title} \cdot BM25_{title} + w_{anchor} \cdot BM25_{anchor} + w_{pr} \cdot \log_{10}(PageRank(d)) $$
+
+Current Weights: Body (0.35), Title (0.45), Anchor (0.20), PageRank (1.5).
+📂 Repository Structure
+Plaintext
