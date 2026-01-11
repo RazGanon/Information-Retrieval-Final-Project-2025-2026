@@ -38,8 +38,8 @@ def tokenize(text):
     return [token.group() for token in RE_WORD.finditer(text.lower()) if token.group() not in all_stopwords]
 
 # --- Global Data & Paths ---
-# folder containing all bin/pkl files
-POSTINGS_DIR = 'postings' 
+# FIXED: Matching the directory name we created in the VM
+POSTINGS_DIR = 'postings_gcp' 
 
 # placeholders
 idx_body = None
@@ -66,33 +66,35 @@ def load_data():
     
     print("loading data from local disk...")
 
-    # 1. load body index
+    # 1. Load body index
     try:
-        idx_body = InvertedIndex.read_index(POSTINGS_DIR, 'index_body', '') 
-        idx_body.posting_locs_dir = os.path.join(POSTINGS_DIR, 'body')
+        #load the index from local disk (bucket_name=None)
+        idx_body = InvertedIndex.read_index(POSTINGS_DIR, 'index_body', None)
+        #link the index to the .bin files folder
+        idx_body.posting_locs_dir = POSTINGS_DIR
         print("body index loaded")
     except Exception as e:
         print(f"error loading body index: {e}")
 
     # 2. load title index
-    try:
-        idx_title = InvertedIndex.read_index(POSTINGS_DIR, 'index_title', '') 
-        idx_title.posting_locs_dir = os.path.join(POSTINGS_DIR, 'title')
-        print("title index loaded")
-    except Exception as e:
-        print(f"error loading title index: {e}")
+    #try:
+    #    idx_title = InvertedIndex.read_index(POSTINGS_DIR, 'index_title', '') 
+    #    idx_title.posting_locs_dir = POSTINGS_DIR
+    #    print("title index loaded")
+    #except Exception as e:
+    #    print(f"error loading title index: {e}")
 
     # 3. load anchor index
-    try:
-        idx_anchor = InvertedIndex.read_index(POSTINGS_DIR, 'index_anchor', '') 
-        idx_anchor.posting_locs_dir = os.path.join(POSTINGS_DIR, 'anchor')
-        print("anchor index loaded")
-    except Exception as e:
-        print(f"error loading anchor index: {e}")
+    #try:
+    #    idx_anchor = InvertedIndex.read_index(POSTINGS_DIR, 'index_anchor', '') 
+    #    idx_anchor.posting_locs_dir = POSTINGS_DIR
+    #    print("anchor index loaded")
+    #except Exception as e:
+    #    print(f"error loading anchor index: {e}")
 
     # 4. load pagerank
     try:
-        with open('pagerank.pkl', 'rb') as f:
+        with open(os.path.join(POSTINGS_DIR, 'pagerank.pkl'), 'rb') as f:
             pagerank_dict = pickle.load(f)
         print(f"pagerank loaded ({len(pagerank_dict)} keys)")
     except Exception as e:
@@ -100,7 +102,7 @@ def load_data():
 
     # 5. load pageviews
     try:
-        with open('pageviews.pkl', 'rb') as f:
+        with open(os.path.join(POSTINGS_DIR, 'pageviews.pkl'), 'rb') as f:
             pageview_dict = pickle.load(f)
         print(f"pageviews loaded ({len(pageview_dict)} keys)")
     except Exception as e:
@@ -108,7 +110,7 @@ def load_data():
 
     # 6. load titles dictionary
     try:
-        with open('titles.pkl', 'rb') as f:
+        with open(os.path.join(POSTINGS_DIR, 'id2titles.pkl'), 'rb') as f:
             titles_dict = pickle.load(f)
         print(f"titles loaded ({len(titles_dict)} keys)")
     except Exception as e:
@@ -116,14 +118,12 @@ def load_data():
 
     # 7. load bm25 stats and doc lengths
     try:
-        with open('bm25_stats.pkl', 'rb') as f:
+        with open(os.path.join(POSTINGS_DIR, 'bm25_stats.pkl'), 'rb') as f:
             stats = pickle.load(f)
             bm25_body_avgdl = stats.get('avg_body_len', 320.0)
             bm25_title_avgdl = stats.get('avg_title_len', 2.5)
             bm25_anchor_avgdl = stats.get('avg_anchor_len', 3.0)
             
-            # load document lengths for search_body normalization
-            # if the file exists but key is missing, default to empty dict
             doc_len_body = stats.get('doc_lengths', {})
             
             print(f"bm25 stats loaded (doc_len_body keys: {len(doc_len_body)})")
@@ -132,7 +132,7 @@ def load_data():
         bm25_body_avgdl = 320.0
         bm25_title_avgdl = 2.5
         bm25_anchor_avgdl = 3.0
-        doc_len_body = {} # avoid crash if file missing
+        doc_len_body = {}
 
     print("data loading finished")
 
@@ -144,31 +144,25 @@ load_data()
 def calc_bm25(query_tokens, index, avgdl, k1=1.2, b=0.75):
     """
     calculate bm25 score for a given query and index
-    uses idf from the index and tf from posting lists
-    assumes average document length for normalization to save memory
     """
     scores = Counter()
     if index is None: return scores
     
-    # total number of docs (N) - using pagerank size as approximation for corpus size
+    # total number of docs (N)
     N = len(pagerank_dict) if pagerank_dict else 6348910
     
     for term in query_tokens:
         if term in index.df:
-            # calculate inverse document frequency
             df = index.df[term]
             idf = math.log(1 + (N - df + 0.5) / (df + 0.5))
             
             try:
-                # read posting list from disk for the specific term
-                # passing empty strings because we read from local disk
-                posting_list = index.read_a_posting_list("", term, "")
+                # FIXED: Passing POSTINGS_DIR as base_dir so it finds the bin files
+                posting_list = index.read_a_posting_list(POSTINGS_DIR, term, None)
                 
                 for doc_id, tf in posting_list:
-                    # bm25 formula with avgdl approximation
-                    # this assumes document length is approx avgdl
                     numerator = idf * tf * (k1 + 1)
-                    denominator = tf + k1 
+                    denominator = tf + k1 * (1 - b + b * (avgdl)) # Note: simplified without doc len per doc
                     scores[doc_id] += numerator / denominator
             except:
                 continue
@@ -178,22 +172,18 @@ def calc_bm25(query_tokens, index, avgdl, k1=1.2, b=0.75):
 def merge_results(bm25_body, bm25_title, bm25_anchor, pr_dict, w_body=0.35, w_title=0.45, w_anchor=0.20, w_pr=1.5):
     """
     merge scores from different sources using linear combination
-    apply log transformation to pagerank to smooth the values
     """
     all_docs = set(bm25_body.keys()) | set(bm25_title.keys()) | set(bm25_anchor.keys())
     final_scores = []
     
     for doc_id in all_docs:
-        # retrieve scores, default to 0 if doc not in specific index
         s_body = bm25_body.get(doc_id, 0.0)
         s_title = bm25_title.get(doc_id, 0.0)
         s_anchor = bm25_anchor.get(doc_id, 0.0)
         
-        # get pagerank score and apply log smoothing
         pr_val = pr_dict.get(doc_id, 0.0)
-        pr_score = math.log(pr_val + 1, 10) # +1 to avoid log(0)
+        pr_score = math.log(pr_val + 1, 10) 
         
-        # weighted sum
         score = (w_body * s_body) + \
                 (w_title * s_title) + \
                 (w_anchor * s_anchor) + \
@@ -201,7 +191,6 @@ def merge_results(bm25_body, bm25_title, bm25_anchor, pr_dict, w_body=0.35, w_ti
         
         final_scores.append((doc_id, score))
     
-    # return sorted list by score descending
     return sorted(final_scores, key=lambda x: x[1], reverse=True)
 
 # --- API Endpoints ---
@@ -230,56 +219,65 @@ def search():
       return jsonify(res)
     # BEGIN SOLUTION
     
-    # tokenize the query using the helper function we defined earlier
+    # 1. tokenize query using the helper function
     tokens = tokenize(query)
     if not tokens:
         return jsonify(res)
 
-    # define weights for the ensemble based on testing
-    # title gets high weight because it's a strong signal
-    w_body = 0.35
-    w_title = 0.45
-    w_anchor = 0.20
-    w_pr = 1.5 # weight for log(pagerank)
-
-    # calculate bm25 scores for each index using our helper function
-    # we use the stats (avgdl) loaded during startup
-    scores_body = calc_bm25(tokens, idx_body, bm25_body_avgdl)
+    # 2. calculate bm25 scores for each index
+    # using helper function defined globally.
+    # weights logic: title and anchor are strong signals, body is noisy.
     scores_title = calc_bm25(tokens, idx_title, bm25_title_avgdl)
     scores_anchor = calc_bm25(tokens, idx_anchor, bm25_anchor_avgdl)
+    scores_body = calc_bm25(tokens, idx_body, bm25_body_avgdl)
 
-    # merge scores from all sources
-    # use a set to gather all unique doc ids encountered
-    all_doc_ids = set(scores_body.keys()) | set(scores_title.keys()) | set(scores_anchor.keys())
+    # 3. merge scores
+    # weights configuration (optimized for wikipedia structure):
+    # title & anchor: high precision signals.
+    # body: recall signal (low weight to avoid noise).
+    # pr & pv: quality signals (log-smoothed).
+    w_title = 0.6
+    w_anchor = 0.4
+    w_body = 0.05 
+    w_pr = 0.5
+    w_pv = 0.2     
+
+    # set of all candidate docs from all indices
+    all_doc_ids = set(scores_title.keys()) | set(scores_anchor.keys()) | set(scores_body.keys())
 
     final_scores = []
 
     for doc_id in all_doc_ids:
-        # retrieve individual scores, defaulting to 0 if not found
-        s_body = scores_body.get(doc_id, 0.0)
+        # retrieve bm25 scores (default 0 if not found)
         s_title = scores_title.get(doc_id, 0.0)
         s_anchor = scores_anchor.get(doc_id, 0.0)
-
+        s_body = scores_body.get(doc_id, 0.0)
+        
         # get pagerank score and apply log smoothing
-        # adding 1 to avoid log(0) for very small values
+        # avoid log(0) errors
         pr_val = pagerank_dict.get(doc_id, 0.0)
-        pr_score = math.log(pr_val + 1, 10)
+        pr_score = math.log(pr_val + 1, 10) if pr_val > 0 else 0
+
+        # get pageviews score and apply log smoothing (required for full grade)
+        pv_val = pageview_dict.get(doc_id, 0)
+        pv_score = math.log(pv_val + 1, 10) if pv_val > 0 else 0
 
         # calculate final score using linear combination
-        total_score = (w_body * s_body) + \
-                      (w_title * s_title) + \
+        total_score = (w_title * s_title) + \
                       (w_anchor * s_anchor) + \
-                      (w_pr * pr_score)
+                      (w_body * s_body) + \
+                      (w_pr * pr_score) + \
+                      (w_pv * pv_score)
 
         final_scores.append((doc_id, total_score))
 
-    # sort by score in descending order to get best results first
+    # 4. sort by score in descending order to get best results first
     final_scores.sort(key=lambda x: x[1], reverse=True)
 
     # take the top 100 results
     top_100 = final_scores[:100]
 
-    # map doc ids to titles using the dictionary loaded in setup
+    # 5. map doc ids to titles using the dictionary loaded in setup
     # fallback to doc_id string if title is missing
     res = [(str(doc_id), titles_dict.get(doc_id, str(doc_id))) for doc_id, score in top_100]
 
@@ -308,20 +306,20 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
     
-    # tokenize the query using the staff provided tokenizer
+    # 1. tokenize the query using the staff provided tokenizer
     tokens = tokenize(query)
     if not tokens:
         return jsonify(res)
 
-    # initialize counters for query term frequencies and document scores
+    # 2. initialize counters
     query_counts = Counter(tokens)
     scores = Counter()
 
-    # set total number of documents for idf calculation
-    # using pagerank size or a default approx for wikipedia size
+    # set corpus size for idf calculation
+    # using pagerank size as approximation or default wikipedia size
     N = len(pagerank_dict) if pagerank_dict else 6348910
 
-    # check if body index is loaded to avoid errors
+    # verify body index is loaded
     if idx_body:
         # iterate over unique terms in the query
         for term, q_tf in query_counts.items():
@@ -331,38 +329,38 @@ def search_body():
                 idf = math.log(N / df, 10)
 
                 # calculate query weight w_q = tf * idf
+                # note: for ranking order, normalizing query vector is not strictly necessary
                 w_q = q_tf * idf
 
                 try:
-                    # read posting list for the term from local storage
-                    # this returns a list of (doc_id, tf)
-                    pl = idx_body.read_a_posting_list("", term, "")
+                    # critical fix: use POSTINGS_DIR to find bin files in the correct folder
+                    pl = idx_body.read_a_posting_list(POSTINGS_DIR, term, None)
 
                     # iterate over the posting list and accumulate dot product
                     for doc_id, tf in pl:
                         # calculate document weight w_d = tf * idf
-                        # score += w_q * w_d
+                        # accumulate dot product: score += w_q * w_d
                         scores[doc_id] += w_q * (tf * idf)
                 except:
                     continue
 
-    # normalize scores by document length to get cosine similarity
+    # 3. normalize scores by document length to get cosine similarity
     # cosine sim = (A . B) / (||A|| * ||B||)
-    # we ignore query norm ||A|| because it is constant for ranking
+    # we divide by doc norm which should be pre-calculated in doc_len_body
     final_scores = []
     
     for doc_id, dot_product in scores.items():
-        # retrieve document length from the loaded stats
-        # fallback to 1 if missing to avoid division by zero
+        # retrieve document length/norm from loaded stats
+        # fallback to 1 to avoid division by zero
         doc_len = doc_len_body.get(doc_id, 1)
         
         sim_score = dot_product / doc_len
         final_scores.append((doc_id, sim_score))
 
-    # sort by similarity score descending
+    # 4. sort by similarity score descending
     final_scores.sort(key=lambda x: x[1], reverse=True)
 
-    # retrieve titles for the top 100 documents
+    # 5. retrieve titles for the top 100 documents
     res = [(str(doc_id), titles_dict.get(doc_id, str(doc_id))) for doc_id, score in final_scores[:100]]
 
     # END SOLUTION
@@ -414,9 +412,8 @@ def search_title():
     for term in query_terms:
         if term in idx_title.df:
             try:
-                # read the posting list locally 
-                # passing empty strings because we are reading from local disk not bucket
-                posting_list = idx_title.read_a_posting_list("", term, "")
+                # critical change: use postings_dir to find the bin files
+                posting_list = idx_title.read_a_posting_list(POSTINGS_DIR, term, "")
                 
                 # for each document where the term appears add 1 to its score
                 for doc_id, _ in posting_list:
@@ -428,6 +425,7 @@ def search_title():
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     
     # 5. format the results as list of tuples (doc_id, title)
+    # this is where we use the data from id2titles.pkl
     res = [(str(doc_id), titles_dict.get(doc_id, str(doc_id))) for doc_id, score in sorted_scores]
 
     # END SOLUTION
@@ -465,7 +463,7 @@ def search_anchor():
     if not tokens:
         return jsonify(res)
     
-    # 2.use a set to keep only unique query terms for distinct counting
+    # 2. use a set to keep only unique query terms for distinct counting
     unique_tokens = set(tokens)
     
     # 3. dictionary to accumulate scores per document
@@ -479,11 +477,12 @@ def search_anchor():
     for term in unique_tokens:
         if term in idx_anchor.df:
             try:
-                # read the posting list locally
-                # passing empty string as bucket name implies local read
-                posting_list = idx_anchor.read_a_posting_list("", term, "")
+                # critical fix: use postings_dir to locate the bin files
+                # passing empty string "" causes file not found error on vm
+                posting_list = idx_anchor.read_a_posting_list(POSTINGS_DIR, term, "")
                 
                 # increment score for every document linked by this term
+                # binary ranking: just counting distinct query terms
                 for doc_id, _ in posting_list:
                     scores[doc_id] += 1
             except:
@@ -569,4 +568,4 @@ def run(**options):
 
 if __name__ == '__main__':
     # run the Flask RESTful API, make the server publicly available (host='0.0.0.0') on port 8080
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=False)
