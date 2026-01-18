@@ -9,7 +9,7 @@ import numpy as np
 # CHANGE THIS to your external GCP IP if running from laptop
 SERVER_URL = 'http://34.172.210.231:8080/' 
 QUERIES_FILE = 'queries_train.json'
-OUTPUT_FILE = 'benchmark_v2.csv'
+OUTPUT_FILE = 'benchmark_v6.csv'
 # ---------------------------------------------------------
 
 def get_metrics(true_ids, pred_ids, k):

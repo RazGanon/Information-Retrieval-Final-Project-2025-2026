@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ramewiki 🍜 - Naruto Search Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍜 Ramewiki</h1>
+            <p class="subtitle">Search through over 6 million Wikipedia articles - Believe it!</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container-wrapper">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            class="search-input" 
+                            placeholder="Enter your search query... Dattebayo! (Press / to focus)"
+                            autocomplete="off"
+                        >
+                        <button id="clearBtn" class="clear-button" style="display: none;" title="Clear search (Esc)">×</button>
+                    </div>
+                    <button id="searchBtn" class="search-button">Search! 🍜</button>
+                </div>
+                <div id="searchHistory" class="search-history" style="display: none;">
+                    <div class="history-header">
+                        <span>Recent Searches</span>
+                        <button id="clearHistoryBtn" class="clear-history-btn" title="Clear history">Clear</button>
+                    </div>
+                    <div id="historyList" class="history-list"></div>
+                </div>
+            </div>
+
+            <div class="search-options">
+                <label class="radio-option" data-tooltip="Combines multiple ranking signals (BM25, PageRank, PageViews) for best results">
+                    <input type="radio" name="searchType" value="search" checked>
+                    <span>🔍 Main Search (Ensemble)</span>
+                </label>
+                <label class="radio-option" data-tooltip="Searches article body content using TF-IDF and cosine similarity">
+                    <input type="radio" name="searchType" value="search_body">
+                    <span>📄 Body Search</span>
+                </label>
+                <label class="radio-option" data-tooltip="Finds articles where query terms appear in the title">
+                    <input type="radio" name="searchType" value="search_title">
+                    <span>🏷️ Title Search</span>
+                </label>
+                <label class="radio-option" data-tooltip="Finds articles linked by anchor text containing query terms">
+                    <input type="radio" name="searchType" value="search_anchor">
+                    <span>🔗 Anchor Search</span>
+                </label>
+                <label class="radio-option" data-tooltip="Results ranked by PageRank (link authority score)">
+                    <input type="radio" name="searchType" value="search_pagerank">
+                    <span>⭐ PageRank Search</span>
+                </label>
+                <label class="radio-option" data-tooltip="Results ranked by PageView count (popularity)">
+                    <input type="radio" name="searchType" value="search_pageview">
+                    <span>👁️ PageView Search</span>
+                </label>
+            </div>
+            
+            <div class="keyboard-hints">
+                <span class="hint">Press <kbd>/</kbd> to focus search</span>
+                <span class="hint">Press <kbd>Esc</kbd> to clear</span>
+                <span class="hint">Press <kbd>Enter</kbd> to search</span>
+            </div>
+        </div>
+
+            <div id="loadingIndicator" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Searching... Believe it!</p>
+        </div>
+
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+        <div id="resultsContainer" class="results-container" style="display: none;">
+            <div class="results-header">
+                <div class="results-title-section">
+                    <h2 id="resultsTitle">Search Results</h2>
+                    <span id="searchTypeBadge" class="search-type-badge"></span>
+                </div>
+                <div class="results-stats">
+                    <span id="resultsCount" class="results-count"></span>
+                    <span id="searchTime" class="search-time"></span>
+                </div>
+            </div>
+            <div id="resultsList" class="results-list"></div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+            <div class="empty-icon">🍜</div>
+            <p class="empty-title">Ready to search, Dattebayo!</p>
+            <p class="empty-subtitle">Enter a search query to find Wikipedia articles</p>
+            <div class="example-queries">
+                <p>Try searching for:</p>
+                <div class="example-tags">
+                    <span class="example-tag">Naruto</span>
+                    <span class="example-tag">Machine Learning</span>
+                    <span class="example-tag">Python</span>
+                    <span class="example-tag">History</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+

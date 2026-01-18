@@ -1,0 +1,53 @@
+========================================
+        REPORT CARD: v1
+========================================
+Queries Processed:    30
+Average Latency:      2.7369s
+Mean Precision@10:    0.0000
+Mean Grade Score:     0.0001
+----------------------------------------
+
+========================================
+        REPORT CARD: v2
+========================================
+Queries Processed:    30
+Average Latency:      3.3954s
+Mean Precision@10:    0.5800
+Mean Grade Score:     0.4424
+----------------------------------------
+
+========================================
+        REPORT CARD: v3
+========================================
+Queries Processed:    30
+Average Latency:      3.4216s
+Mean Precision@10:    0.5800
+Mean Grade Score:     0.4424
+----------------------------------------
+
+========================================
+        REPORT CARD: v4
+========================================
+Queries Processed:    30
+Average Latency:      3.2796s
+Mean Precision@10:    0.5800
+Mean Grade Score:     0.4424
+----------------------------------------
+
+========================================
+        REPORT CARD: v5
+========================================
+Queries Processed:    30
+Average Latency:      3.3443s
+Mean Precision@10:    0.5800
+Mean Grade Score:     0.4424
+----------------------------------------
+
+========================================
+        REPORT CARD: v6
+========================================
+Queries Processed:    30
+Average Latency:      3.2373s
+Mean Precision@10:    0.5800
+Mean Grade Score:     0.4424
+----------------------------------------
