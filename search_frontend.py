@@ -162,8 +162,7 @@ def calc_binary_score(query_tokens, index):
     for term in set(query_tokens):
         if term in index.df:
             # --- EFFICIENCY FIX ---
-            # If a term is too common (e.g., > 500,000 docs), it's noise.
-            # This is critical for the Anchor Index where words like "London" are massive.
+            # If a term is too common (> 500k docs), regard as noise.
             if index.df[term] > 500000:
                 continue
             # ----------------------
@@ -361,7 +360,7 @@ def search_title():
         return jsonify(res)
         
     # 2. Calculate Binary Score (Count distinct matches)
-    # This fulfills the requirement: "ordered in descending order of the NUMBER OF DISTINCT QUERY WORDS"
+    # "ordered in descending order of the NUMBER OF DISTINCT QUERY WORDS"
     scores = calc_binary_score(tokens, idx_title)
     
     # 3. Sort by score with TIE-BREAKING FIX
